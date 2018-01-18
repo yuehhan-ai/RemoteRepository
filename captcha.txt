@@ -1,0 +1,79 @@
+﻿member/views.py
+
+def captcha(request):    
+    import random
+    # 安裝 pillow  pip install pillow
+    from PIL import Image,ImageDraw,ImageFont   
+    list1 = random.sample(['0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'],5)
+    txt = ''.join(list1)    
+    
+    # todo 將產生的數字及字母存到session中
+    request.session['captcha'] = txt  
+    
+    width = 15 * 4
+    height = 30
+    image = Image.new('RGB', (width, height), (255, 255, 255))    
+    # 下載字體https://fonts.google.com/
+    thefont = finders.find('fonts/Kavivanar-Regular.ttf')
+    font = ImageFont.truetype(thefont, 16)   
+    draw = ImageDraw.Draw(image)
+    draw.text((5, 5), txt,font=font, fill=(255, 0, 0))
+    response = HttpResponse(content_type="image/png")
+    image.save(response, "PNG")
+    return response
+
+
+def login(request):   
+    if request.method == "POST":
+        email = request.POST['useremail']
+        pwd = request.POST['userpassword']
+
+        # todo接收browser傳過來的captcha資料
+        
+
+        # 跟session中的captcha比對，如果不一樣就顯示驗證碼輸入錯誤
+        # if session中的captcha與瀏覽器傳過來的 captcha 比對 一樣:
+            member = Member.objects.filter(useremail=email,password=pwd).values('username')
+            if member:
+                themember = member[0]            
+                response = HttpResponse("<script>alert('登入成功');location.href='/member/'</script>")
+                if 'rememberme' in request.POST.keys() and request.POST['rememberme']:
+                    expiresdate = datetime.datetime.now() + datetime.timedelta(days=7)
+                    response.set_cookie("name",themember['username'],expires=expiresdate)
+                else:
+                    response.set_cookie("name",themember['username'])
+                return response
+            else:
+                return HttpResponse("<script>alert('登入失敗，密碼錯誤');location.href='/member/login'</script>")
+        # 不一樣:
+            #  顯示驗證碼輸入錯誤
+
+    title = "會員登入"
+    return render(request,'member/login.html',locals())
+
+templates/login.html
+加上這段
+<div class="form-group">
+    <input type="text" name="captcha" id="captcha" placeholder="驗證碼">
+    <img id="img_captcha" src="/member/captcha">
+    <button id="btn_captcha" type="button">
+      <i class="fa fa-refresh" aria-hidden="true"></i>
+    </button>
+  </div>
+
+ajax 程式
+{% block script %}
+<script>
+  $('#btn_captcha').click(function () {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "/member/captcha", true);
+    xhr.responseType = "arraybuffer";
+    xhr.addEventListener("load",function(event) {
+      var blob = new Blob([xhr.response], {type: "image/png"});
+      var imageUrl = window.URL.createObjectURL(blob);   
+      $('#img_captcha').attr('src',imageUrl)
+    });
+    xhr.send();    
+  })
+</script> 
+{% endblock %}
